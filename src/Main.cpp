@@ -45,8 +45,11 @@ int main(int argc, char* argv[])
     Q_INIT_RESOURCE(ArtnetConverter);
 
     // ──── LOAD QML MAIN ────
-
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+    engine.load(QUrl("qrc:/ArtnetConverter/ApplicationWindow.qml"));
+#else
     engine.load(QUrl("qrc:/ArtnetConverter/SplashScreenApplication.qml"));
+#endif
     if(engine.rootObjects().isEmpty())
         return -1;
 
