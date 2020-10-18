@@ -1,0 +1,195 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - ci
+
+  pull_request:
+    branches:
+      - master
+
+  repository_dispatch:
+    types: [qaterial-update]
+
+jobs:
+  BuildAppImage:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: "Configure"
+      run: mkdir -p build && docker run --rm -v $(pwd):/src/ --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined reivilo1234/qt-linux-cmake:qt5.15.1-gcc7 cmake -B ./build/ -S . -DARTNETCONVERTER_IGNORE_ENV=ON
+
+    - name: "Build ArtnetConverter"
+      run: docker run --rm -v $(pwd):/src/ --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined reivilo1234/qt-linux-cmake:qt5.15.1-gcc7 cmake --build build --target "ArtnetConverter" --config "Release" -j $(nproc)
+
+    - name: "Deploy ArtnetConverter AppImage"
+      run: docker run --rm -v $(pwd):/src/ --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined reivilo1234/qt-linux-cmake:qt5.15.1-gcc7 cmake --build build --target "ArtnetConverterAppImage" --config "Release" -j $(nproc)
+
+    - name: Upload ArtnetConverter AppImage
+      uses: actions/upload-artifact@v2
+      with:
+        name: ArtnetConverter.AppImage
+        path: build/*.AppImage
+
+  BuildApk:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        abi: ['armeabi-v7a', 'arm64-v8a', 'x86_64']
+        # 24 : Android 7.1, 26: Android 8, 28: Android 9, 29: Android 10
+        target-api: ['24', '26', '28', '29']
+        build-tools: ['30.0.2']
+        version: ['5.15.1']
+        build-type: ['Release']
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: seanmiddleditch/gha-setup-ninja@master
+
+    - name: Cache Qt
+      id: cache-qt
+      uses: actions/cache@v2
+      with:
+        path: ${{ github.workspace }}/Qt-${{ runner.os }}-${{ matrix.version }}
+        key: ${{ runner.os }}-QtCache-${{ matrix.version }}-modules
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v2
+      with:
+        version: ${{ matrix.version }}
+        target: android
+        dir: ${{ github.workspace }}/Qt-${{ runner.os }}-${{ matrix.version }}
+
+    - name: Delete Qt built-in styles
+      run: |
+        rm -rf ${Qt5_Dir}/qml/QtQuick/Controls.2/designer
+        rm -rf ${Qt5_Dir}/qml/QtQuick/Controls.2/Fusion
+        rm -rf ${Qt5_Dir}/qml/QtQuick/Controls.2/Imagine
+        rm -rf ${Qt5_Dir}/qml/QtQuick/Controls.2/Universal
+      shell: bash
+
+    - name: "Create signingKey.jks"
+      run: |
+        mkdir -p build
+        echo ${{ secrets.ANDROID_SIGNING_KEY }} > build/signingKeyBase64.txt
+        base64 -d build/signingKeyBase64.txt > build/signingKey.jks
+
+    - name: "Configure"
+      run: |
+        export JAVA_HOME=$JAVA_HOME_8_X64
+        export ANDROID_SDK=$ANDROID_SDK_ROOT
+        export ANDROID_NDK=$ANDROID_SDK/ndk-bundle
+        echo $ANDROID_SDK
+        echo $ANDROID_NDK
+        echo $JAVA_HOME
+        mkdir -p build
+        cmake \
+          -G "Ninja" \
+          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+          -DANDROID_ABI=${{ matrix.abi }} \
+          -DANDROID_NATIVE_API_LEVEL=${{ matrix.target-api }} \
+          -DANDROID_STL=c++_shared \
+          -DANDROID_TOOLCHAIN=clang \
+          -DANDROID_BUILDTOOLS_REVISION=${{ matrix.build-tools }} \
+          -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} \
+          -B ./build/ -S . \
+          -DARTNETCONVERTER_ANDROID_KEYSTORE=$(pwd)/build/signingKey.jks \
+          -DARTNETCONVERTER_ANDROID_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }} \
+          -DARTNETCONVERTER_ANDROID_KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEY_STORE_PASSWORD }} \
+          -DARTNETCONVERTER_ANDROID_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
+
+    - name: "Build ArtnetConverter"
+      run: cmake --build build --target ArtnetConverter -j
+
+    - name: "Deploy ArtnetConverter Apk"
+      run: cmake --build build --target ArtnetConverterApk -j
+
+    - name: Upload ArtnetConverter Apk
+      uses: actions/upload-artifact@v2
+      with:
+        name: ArtnetConverter-${{ matrix.abi }}-${{ matrix.target-api }}.apk
+        path: build/ArtnetConverter-${{ matrix.abi }}/build/outputs/apk/release/ArtnetConverter-${{matrix.abi}}-release-signed.apk
+
+  BuildWindows:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macOS-latest]
+        version: ['5.15.1']
+        build-type: ['Release']
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Cache Qt
+        id: cache-qt
+        uses: actions/cache@v2
+        with:
+          path: ${{ github.workspace }}/Qt-${{ runner.os }}-${{ matrix.version }}
+          key: ${{ runner.os }}-QtCache-${{ matrix.version }}-modules
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v2
+        with:
+          version: ${{ matrix.version }}
+          dir: ${{ github.workspace }}/Qt-${{ runner.os }}-${{ matrix.version }}
+          cached: ${{ steps.cache-qt.outputs.cache-hit }}
+
+      - name: Delete Qt built-in styles
+        run: |
+          rm -rf ${Qt5_Dir}/qml/QtQuick/Controls.2/designer
+          rm -rf ${Qt5_Dir}/qml/QtQuick/Controls.2/Fusion
+          rm -rf ${Qt5_Dir}/qml/QtQuick/Controls.2/Imagine
+          rm -rf ${Qt5_Dir}/qml/QtQuick/Controls.2/Universal
+        shell: bash
+
+      - name: Configure
+        run: |
+          mkdir -p build
+          cmake -DARTNETCONVERTER_IGNORE_ENV=ON -DCMAKE_BUILD_TYPE="${{ matrix.build-type }}" -B build -S .
+        shell: bash
+
+      - name: Build ArtnetConverter
+        run: cmake --build build --target "ArtnetConverter" --config "${{ matrix.build-type }}" -j
+
+      - name: Build ArtnetConverter Installer
+        run: cmake --build build --target "ArtnetConverterInstallerX64" --config "${{ matrix.build-type }}" -j
+        if: contains(matrix.os, 'windows')
+
+      - name: Upload ArtnetConverter Installer
+        uses: actions/upload-artifact@v2
+        with:
+          name: ArtnetConverter Installer Windows (${{ matrix.version }})
+          path: build/ArtnetConverterInstaller*.exe
+        if: contains(matrix.os, 'windows')
+
+  BuildWasm:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: "Configure"
+      run: mkdir -p build && docker run --rm -v $(pwd):/src/ -u $(id -u):$(id -g) reivilo1234/qt-webassembly-cmake:qt5.15-em1.39.10 cmake -B ./build/ -S . ..
+    - name: "Build"
+      run: docker run --rm -v $(pwd):/src/ -u $(id -u):$(id -g) reivilo1234/qt-webassembly-cmake:qt5.15-em1.39.10 make -C build -j
+    - name: "Deploy to Github Pages"
+      run: |
+        mkdir -p build/deploy
+        mv platforms/html/index.html build/deploy/index.html
+        mv build/qtloader.js build/deploy/qtloader.js
+        mv build/ArtnetConverter.js build/deploy/ArtnetConverter.js
+        mv build/qtlogo.svg build/deploy/qtlogo.svg
+        mv build/ArtnetConverter.wasm build/deploy/ArtnetConverter.wasm
+        mv platforms/html/icon.ico build/deploy/icon.ico
+        cd build/deploy
+        git init
+        git add .
+        git -c user.name='ci' -c user.email='ci' commit -m init
+        git push -f -q https://git:${{ secrets.github_token }}@github.com/${{ github.repository }} HEAD:gh-pages
+      if: (github.event_name == 'repository_dispatch') || (github.event_name == 'push' && github.ref == 'refs/heads/master')

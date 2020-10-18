@@ -1,0 +1,8 @@
+# File auto generated with CMake qt_generate_qmldir. Run CMake to regenerate if files changed.
+
+module ArtnetConverter
+
+Application 1.0 Application.qml
+ApplicationWindow 1.0 ApplicationWindow.qml
+SplashScreenApplication 1.0 SplashScreenApplication.qml
+SplashScreenWindow 1.0 SplashScreenWindow.qml

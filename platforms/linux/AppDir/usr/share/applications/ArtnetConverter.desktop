@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Artnet Converter
+Comment=Convert Artnet Network/SubNet/Universe to Decimal
+Exec=ArtnetConverter
+Icon=ArtnetConverter
+Categories=Application;
