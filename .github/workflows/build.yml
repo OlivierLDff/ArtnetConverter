@@ -3,15 +3,12 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - main
       - ci
 
   pull_request:
     branches:
-      - master
-
-  repository_dispatch:
-    types: [qaterial-update]
+      - main
 
 jobs:
   BuildAppImage:
@@ -192,4 +189,4 @@ jobs:
         git add .
         git -c user.name='ci' -c user.email='ci' commit -m init
         git push -f -q https://git:${{ secrets.github_token }}@github.com/${{ github.repository }} HEAD:gh-pages
-      if: (github.event_name == 'repository_dispatch') || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+      if: (github.event_name == 'repository_dispatch') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
