@@ -17,7 +17,12 @@ Qaterial.ApplicationWindow
   minimumWidth: 200
   minimumHeight: 200
 
-  ArtnetConverter.Application { anchors.fill: parent }
+  ArtnetConverter.Application
+  {
+    anchors.fill: parent
+    pane.width: Math.min(400, parent.width)
+    pane.anchors.centerIn: pane.parent
+  }
 
   Qaterial.WindowLayoutSave { name: "ArtnetConverter" }
 }
