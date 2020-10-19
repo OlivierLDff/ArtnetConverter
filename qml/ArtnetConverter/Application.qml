@@ -115,6 +115,7 @@ Qaterial.ScrollablePage
         text: root.artnetSubNet.toString(16).toUpperCase()
         validator: RegExpValidator { regExp: /[a-fA-F0-9]/ }
         helperText: "0 to F"
+        inputMethodHints: Qt.ImhSensitiveData
 
         onTextEdited: function()
         {
@@ -137,6 +138,7 @@ Qaterial.ScrollablePage
         text: root.artnetUniverse.toString(16).toUpperCase()
         validator: RegExpValidator { regExp: /[a-fA-F0-9]/ }
         helperText: "0 to F"
+        inputMethodHints: Qt.ImhSensitiveData
 
         onTextEdited: function()
         {
